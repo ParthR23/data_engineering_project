@@ -1,0 +1,7 @@
+pip pycryptodomex
+pycryptodome
+loguru
+google-cloud
+pyspark
+findspark
+mysql-connector-python
