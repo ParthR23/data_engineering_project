@@ -1,4 +1,4 @@
-pip pycryptodomex
+pycryptodomex
 pycryptodome
 loguru
 google-cloud
