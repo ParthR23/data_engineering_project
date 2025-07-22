@@ -13,4 +13,4 @@ s3_client = s3_client_provider.get_client()
 # To use s3_client for our operations
 response = s3_client.list_buckets()
 print(response)
-logger.info("List of Buckets: %s", response['Buckets'])
+logger.info("List of Buckets: %s", response['Buckets']) #used to segregate the logs
