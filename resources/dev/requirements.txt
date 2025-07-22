@@ -5,3 +5,4 @@ google-cloud
 pyspark
 findspark
 mysql-connector-python
+boto3
