@@ -4,11 +4,11 @@ def get_mysql_connection():
     connection = mysql.connector.connect(
         host="localhost",
         user="root",
-        password="password",
+        password="root",
         database="data_engineering_project"
     )
     return connection
-
+#use mysql -u root -p to start mysql locally
 
 
 

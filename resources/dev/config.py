@@ -17,7 +17,7 @@ s3_processed_directory = "sales_data_processed/"
 
 #Database credential
 # MySQL database connection properties
-database_name = "youtube_project"
+database_name = "data_engineering_project"
 url = f"jdbc:mysql://localhost:3306/{database_name}"
 properties = {
     "user": "root",
