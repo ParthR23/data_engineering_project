@@ -1,6 +1,10 @@
+import logging
 import os
+import sys
 
 from resources.dev import config
+from resources.dev.config import bucket_name, local_directory
+from src.main.download.aws_file_download import S3FileDownloader
 from src.main.read.aws_read import S3Reader
 from src.main.utility.encrypt_decrypt import *
 from src.main.utility.my_sql_session import get_mysql_connection
@@ -8,6 +12,7 @@ from src.main.utility.s3_client_object import  *
 from src.main.utility.logging_config import *
 from src.test.generate_csv_data import start_date
 from src.test.scratch_pad import folder_path, s3_absolute_file_path
+from src.main.utility.spark_session import *
 
 ################# Get S3 Client ###################
 aws_access_key = config.aws_access_key
@@ -67,3 +72,51 @@ try:
 except Exception as e:
     logger.error("Exited with error:- %s",e)
     raise e
+
+bucket_name = config.bucket_name
+local_directory = config.local_directory
+
+prefix = f"s3://{bucket_name}/"
+file_paths = [url[len(prefix):] for url in s3_absolute_file_path]
+logging.info("File path available on s3 under %s bucket and folder name is %s", bucket_name)
+logging.info(f"File path available on s3 under {bucket_name} bucket and folder name {file_paths}")
+try:
+    downloader = S3FileDownloader(s3_client,bucket_name,local_directory)
+    downloader.download_files(file_paths)
+except Exception as e:
+    logger.error("File download error: %s", e)
+    sys.exit()
+
+#Get a list fo all files in the local directory
+all_files = os.listdir(local_directory)
+logger.info(f"List of files present at my local directory after download {all_files}")
+
+
+#Filter files with ".csv" in their names and create absolute paths
+if all_files:
+    csv_files = []
+    error_files = []
+    for files in all_files:
+        if files.endswith(".csv"):
+            csv_files.append(os.path.abspath(os.path.join(local_directory,files)))
+        else:
+            error_files.append(os.path.abspath(os.path.join(local_directory,files)))
+
+    if not csv_files:
+        logger.error("No csv data available to process the request")
+        raise Exception("No csv data available to process the request")
+
+else:
+    logger.error("There is no data to process")
+    raise Exception("There is no data to process.")
+
+############## make csv lines convert into list of comma separated ###########
+csv_files = str(csv_files)[1:-1]
+logger.info("******************Listing the file************")
+logger.info("List of csv files that needs to be processed %s", csv_files)
+
+logger.info("***************Creating spark session*************")
+spark = spark_session()
+logger.info("************ spark session created ***********")
+
+
