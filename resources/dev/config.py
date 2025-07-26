@@ -21,7 +21,7 @@ database_name = "data_engineering_project"
 url = f"jdbc:mysql://localhost:3306/{database_name}"
 properties = {
     "user": "root",
-    "password": "password",
+    "password": "root",
     "driver": "com.mysql.cj.jdbc.Driver"
 }
 

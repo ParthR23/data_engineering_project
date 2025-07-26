@@ -6,14 +6,14 @@ from datetime import datetime
 customer_ids = list(range(1, 21))
 store_ids = list(range(121, 124))
 product_data = {
-    "quaker oats": 212,
-    "sugar": 50,
-    "maida": 20,
-    "besan": 52,
-    "refined oil": 110,
-    "clinic plus": 1.5,
-    "dantkanti": 100,
-    "nutrella": 40
+    "Iphone": 70000,
+    "Ipad": 60000,
+    "Iwatch": 25000,
+    "IMac": 80000,
+    "Mac mini": 50000,
+    "Ipods": 15000,
+    "Travel Adapter": 2500,
+    "Adapter Cable": 1000
 }
 sales_persons = {
     121: [1, 2, 3],
@@ -21,7 +21,7 @@ sales_persons = {
     123: [7, 8, 9]
 }
 
-file_location = "C:\\Users\\nikita\\Documents\\data_engineering\\spark_data"
+file_location = "/Users/parthambhorkar/Data_Engineering_Project/spark_data"
 
 if not os.path.exists(file_location):
     os.makedirs(file_location)
