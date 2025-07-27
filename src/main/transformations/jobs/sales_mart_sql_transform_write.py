@@ -14,7 +14,14 @@ def sales_mart_calculation_table_write(data_df1):
         .withColumn("total_sales_every_month",sum(col("total_cost")).over(window))\
         .select("store_id","sales_person_id",concat(col("sales_person_first_name"),lit(" "), col("sales_person_last_name")).alias("full_name"),"sales_month","total_sales_every_month").distinct()
 
-    rank_window = Window.partitionBy("store_id","sales_month").orderBy(col("total_sales_every_month"))
+    rank_window = Window.partitionBy("store_id","sales_month").orderBy(col("total_sales_every_month").desc())
     data_df1 = data_df1\
     .withColumn("rnk", rank().over(rank_window))\
-    .withColumn("incentive", when(col("rnk") == 1, col("total_sales_every_month")))
+    .withColumn("incentive", when(col("rnk") == 1, col("total_sales_every_month") * 0.01).otherwise(lit(0)))\
+    .withColumn("incentive", round(col("incentive"),2))\
+    .withColumn("total_sales", col("total_sales_every_month"))\
+    .select("store_id","full_name","sales_month","total_sales","incentive")
+    #Write the data into MYSQL customer_data_mart table
+    print("writing the data into sales_team data mart")
+    db_writer = DatabaseWriter(url=config.url,properties=config.properties)
+    db_writer.write_dataframe(data_df1,config.sales_team_data_mart_table)
