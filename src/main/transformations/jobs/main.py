@@ -13,6 +13,7 @@ from src.main.download.aws_file_download import S3FileDownloader
 from src.main.move.move_files import move_s3_to_s3
 from src.main.read.aws_read import S3Reader
 from src.main.read.database_read import DatabaseReader
+from src.main.transformations.jobs.customer_mart_sql_tranform_write import customer_mart_calculation_table_write
 from src.main.transformations.jobs.dimension_tables_join import dimesions_table_join
 from src.main.upload.upload_to_s3 import UploadToS3
 from src.main.utility.encrypt_decrypt import *
@@ -316,12 +317,12 @@ logger.info(f"{message}")
 
 #sales_team Data Mart
 logger.info("************* Write the data into sales team Data Mart **********")
-data_df = s3_customer_store_sales_df_join\
+data_df1 = s3_customer_store_sales_df_join\
     .select("store_id","sales_person_id","sales_person_first_name","sales_person_last_name","store_manager_name","manager_id","is_manager","sales_person_address","sales_person_pincode","sales_date","total_cost",expr("SUBSTRING(sales_date,1,7) as sales_month"))
 
 logger.info("************ Final data for sales team Data Mart ************")
-data_df.show()
-parquet_writer.dataframe_writer(data_df,config.sales_team_data_mart_local_file)
+data_df1.show()
+parquet_writer.dataframe_writer(data_df1,config.sales_team_data_mart_local_file)
 logger.info(f"***************Sales team data written to local disk at {config.sales_team_data_mart_local_file} *************")
 
 
@@ -332,7 +333,7 @@ message = s3_uploader.upload_to_s3(s3_directory,config.bucket_name,config.sales_
 logger.info(f"{message}")
 
 #Also writing the data into partitions
-data_df.write.format("parquet")\
+data_df1.write.format("parquet")\
     .option("header","true")\
     .mode("overwrite")\
     .partitionBy("sales_month","store_id")\
@@ -349,11 +350,12 @@ for root, dirs, files in os.walk(config.sales_team_data_mart_partitioned_local_f
         s3_key = f"{s3_prefix}/{current_epoch}/{relative_file_path}"
         s3_client.upload_file(local_file_path,config.bucket_name,s3_key)
 
-
 #calculation for customer mart
 #find out the customer total purchase every month
 #write the data into MYSQL table
 
-
+logger.info("**********Calculating customer every month purchased amount ***********")
+customer_mart_calculation_table_write(data_df)
+logger.info("*******Calculation of customer mart done and written into the table *********")
 
 
