@@ -44,5 +44,5 @@ mandatory_columns = ["customer_id","store_id","product_name","sales_date","sales
 local_directory = "/Users/parthambhorkar/Data_Engineering_Project/file_from_s3/"
 customer_data_mart_local_file = "/Users/parthambhorkar/Data_Engineering_Project/customer_data_mart/"
 sales_team_data_mart_local_file = "/Users/parthambhorkar/Data_Engineering_Project/sales_team_data_mart/"
-sales_team_data_mart_partitioned_local_file = "/Users/parthambhorkar/Data_Engineering_Project\sales_partition_data/"
+sales_team_data_mart_partitioned_local_file = "/Users/parthambhorkar/Data_Engineering_Project/sales_partition_data/"
 error_folder_path_local = "/Users/parthambhorkar/Data_Engineering_Project/error_files/"

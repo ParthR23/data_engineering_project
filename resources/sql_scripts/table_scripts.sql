@@ -80,14 +80,14 @@ CREATE TABLE product (
 --product table data
 INSERT INTO product (name, current_price, old_price, created_date, updated_date, expiry_date)
 VALUES
-    ('quaker oats', 212, 212, '2022-05-15', NULL, '2025-01-01'),
-    ('sugar', 50, 50, '2021-08-10', NULL, '2025-01-01'),
-    ('maida', 20, 20, '2023-03-20', NULL, '2025-01-01'),
-    ('besan', 52, 52, '2020-05-05', NULL, '2025-01-01'),
-    ('refined oil', 110, 110, '2022-01-15', NULL, '2025-01-01'),
-    ('clinic plus', 1.5, 1.5, '2021-09-25', NULL, '2025-01-01'),
-    ('dantkanti', 100, 100, '2023-07-10', NULL, '2025-01-01'),
-    ('nutrella', 40, 40, '2020-11-30', NULL, '2025-01-01');
+    ('Iphone', 70000, 70000, '2022-05-15', NULL, '2025-01-01'),
+    ('Ipad', 60000, 60000, '2021-08-10', NULL, '2025-01-01'),
+    ('Iwatch', 25000, 25000, '2023-03-20', NULL, '2025-01-01'),
+    ('IMac', 80000, 80000, '2020-05-05', NULL, '2025-01-01'),
+    ('Mac mini', 50000, 50000, '2022-01-15', NULL, '2025-01-01'),
+    ('Ipods', 15000, 15000, '2021-09-25', NULL, '2025-01-01'),
+    ('Travel Adapter', 2500, 2500, '2023-07-10', NULL, '2025-01-01'),
+    ('Adapter Cable', 1000, 1000, '2020-11-30', NULL, '2025-01-01');
 
 
 --sales team table

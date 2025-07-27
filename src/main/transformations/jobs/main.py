@@ -4,17 +4,28 @@ import os
 import shutil
 import sys
 
+from jmespath.ast import field
+from pyspark.examples.src.main.python.als import update
+
 from resources.dev import config
-from resources.dev.config import bucket_name, local_directory, error_folder_path_local
+from resources.dev.config import bucket_name, local_directory, error_folder_path_local, product_staging_table, \
+    sales_team_table, store_table
+from src.main.delete.local_file_delete import delete_local_file
 from src.main.download.aws_file_download import S3FileDownloader
 from src.main.move.move_files import move_s3_to_s3
 from src.main.read.aws_read import S3Reader
 from src.main.read.database_read import DatabaseReader
+from src.main.transformations.jobs.customer_mart_sql_tranform_write import customer_mart_calculation_table_write
+from src.main.transformations.jobs.dimension_tables_join import dimesions_table_join
+from src.main.transformations.jobs.sales_mart_sql_transform_write import sales_mart_calculation_table_write
+from src.main.upload.upload_to_s3 import UploadToS3
 from src.main.utility.encrypt_decrypt import *
 from src.main.utility.my_sql_session import get_mysql_connection
 from src.main.utility.s3_client_object import  *
 from src.main.utility.logging_config import *
+from src.main.write.parquet_writer import ParquetWriter
 from src.test.generate_csv_data import start_date
+from src.test.sales_data_upload_s3 import s3_directory
 from src.test.scratch_pad import folder_path, s3_absolute_file_path
 from src.main.utility.spark_session import *
 
@@ -247,5 +258,166 @@ for data in correct_files:
 logger.info("********** Final Dataframe from source which will be going to be processing **********")
 data_df.show()
 
+#Enrich the data from all dimension table
+#Also create a datamart for sale_team and their respective incentives, address and al
+#Another datamart for customer who bought how much each days of month
+#For every month there should be a file and inside that there should be a store_id segrigation
+#read the data from parquet and generate a csv file
+#sales_person_total_billing_done_for_each_month, total_incentives
 
+#Connecting with DatabaseReader
+database_client = DatabaseReader(config.url,config.properties)
+#creating df for all tables
+
+#customer table
+logger.info("************ Loading customer table into customer_table_df *************")
+customer_table_df = database_client.create_dataframe(spark,config.customer_table_name)
+
+#product table
+logger.info("************ Loading product table into product_table_df *************")
+product_table_df = database_client.create_dataframe(spark,config.product_table)
+
+#product staging table
+logger.info("************ Loading staging table into product_staging_table_df *************")
+product_staging_table_df = database_client.create_dataframe(spark,config.product_staging_table)
+
+#sales team table
+logger.info("************ Loading sales team table into sales_team_table_df *************")
+sales_team_table_df = database_client.create_dataframe(spark,config.sales_team_table)
+
+#store table
+logger.info("************ Loading store table into store_table_df *************")
+store_table_df = database_client.create_dataframe(spark,config.store_table)
+
+s3_customer_store_sales_df_join = dimesions_table_join(data_df,customer_table_df, store_table_df, sales_team_table_df)
+
+#Final enriched data
+logger.info("************ Final Enriched Data *************")
+s3_customer_store_sales_df_join.show()
+
+#Write the customer data into customer data mart in parquet format
+#file will be written to local first
+#move the RAW data to s3 bucket fo reporting tool
+#Write reporting data into MYSQL table also
+
+logger.info("*********** Write the data into Customer Data Mart ***********")
+data_df = s3_customer_store_sales_df_join\
+    .select("ct.customer_id", "ct.first_name","ct.last_name","ct.address","ct.pincode","phone_number","sales_date","total_cost")
+logger.info("************* Final data for customer Data Mart ************")
+data_df.show()
+
+parquet_writer = ParquetWriter("overwrite","parquet")
+parquet_writer.dataframe_writer(data_df,config.customer_data_mart_local_file)
+
+logger.info(f"********* Customer data written t the local disk at {config.customer_data_mart_local_file}")
+
+#Move data on s3 bucket for customer_data_mart
+logger.info("********* Data Movement from local to s3 for customer data mart ************")
+s3_uploader = UploadToS3(s3_client)
+s3_directory = config.s3_customer_datamart_directory
+message = s3_uploader.upload_to_s3(s3_directory,config.bucket_name,config.customer_data_mart_local_file)
+logger.info(f"{message}")
+
+#sales_team Data Mart
+logger.info("************* Write the data into sales team Data Mart **********")
+data_df1 = s3_customer_store_sales_df_join\
+    .select("store_id","sales_person_id","sales_person_first_name","sales_person_last_name","store_manager_name","manager_id","is_manager","sales_person_address","sales_person_pincode","sales_date","total_cost",expr("SUBSTRING(sales_date,1,7) as sales_month"))
+
+logger.info("************ Final data for sales team Data Mart ************")
+data_df1.show()
+parquet_writer.dataframe_writer(data_df1,config.sales_team_data_mart_local_file)
+logger.info(f"***************Sales team data written to local disk at {config.sales_team_data_mart_local_file} *************")
+
+
+#Move data on s3 bucket for sales_data_mart
+s3_uploader = UploadToS3(s3_client)
+s3_directory = config.s3_sales_datamart_directory
+message = s3_uploader.upload_to_s3(s3_directory,config.bucket_name,config.sales_team_data_mart_local_file)
+logger.info(f"{message}")
+
+#Also writing the data into partitions
+data_df1.write.format("parquet")\
+    .option("header","true")\
+    .mode("overwrite")\
+    .partitionBy("sales_month","store_id")\
+    .option("path",config.sales_team_data_mart_partitioned_local_file)\
+    .save()
+#Move data on s3 for partitioned folder
+s3_prefix = "sales_partitioned_data_mart"
+current_epoch = int(datetime.datetime.now().timestamp()) *  1000
+for root, dirs, files in os.walk(config.sales_team_data_mart_partitioned_local_file):
+    for file in files:
+        print(file)
+        local_file_path = os.path.join(root,file)
+        relative_file_path = os.path.relpath(local_file_path,config.sales_team_data_mart_partitioned_local_file)
+        s3_key = f"{s3_prefix}/{current_epoch}/{relative_file_path}"
+        s3_client.upload_file(local_file_path,config.bucket_name,s3_key)
+
+#calculation for customer mart
+#find out the customer total purchase every month
+#write the data into MYSQL table
+
+logger.info("**********Calculating customer every month purchased amount ***********")
+customer_mart_calculation_table_write(data_df)
+logger.info("*******Calculation of customer mart done and written into the table *********")
+
+# calculation for sales team mart
+#find out the total sales done y each sales person every month
+#Give the top performer 1% incentive of total sales of every month
+#rest sales person will get nothing
+#write the data into MYSQL table
+logger.info("**********Calculating sales every month billed amount*********")
+sales_mart_calculation_table_write(data_df1)
+logger.info("*********Calculation of sales mart done and written into the table**********")
+
+##################Last Step############
+#Move the file on s3 into the processed folder and delete the local files
+source_prefix = config.s3_source_directory
+destination_prefix = config.s3_source_directory
+message = move_s3_to_s3(s3_client, config.bucket_name, source_prefix, destination_prefix)
+logger.info(f"{message}")
+
+logger.info("***********Deleting sales data from local *********")
+delete_local_file(config.local_directory)
+logger.info("***********Deleted sales data from local *********")
+
+logger.info("***********Deleting customer data from local *********")
+delete_local_file(config.customer_data_mart_local_file)
+logger.info("***********Deleted customer data from local *********")
+
+logger.info("***********Deleting sales team data from local *********")
+delete_local_file(config.sales_team_data_mart_local_file)
+logger.info("***********Deleted sales team data from local *********")
+
+logger.info("***********Deleting sales team partitioned data from local *********")
+delete_local_file(config.sales_team_data_mart_partitioned_local_file)
+logger.info("***********Deleted sales team partitioned data from local *********")
+
+#update the status of staging table
+
+update_statements = []
+if correct_files:
+    for file in correct_files:
+        filename = os.path.basename(file)
+        statements = f"UPDATE {db_name}.{config.product_staging_table} "\
+                     f"SET status = 'I' , updated_date = '{formatted_date}'"\
+                     f"WHERE file_name = '{file_name}'"
+
+        update_statements.append(statements)
+        logger.info(f"Updated statement created for staging table --- {update_statements}")
+        logger.info("************Connecting with MYSQL server**************")
+        connection = get_mysql_connection()
+        cursor = connection.cursor()
+        logger.info("************MYSQL server connected successfully**************")
+        for statement in update_statements:
+            cursor.execute(statement)
+            connection.commit()
+        cursor.close()
+        connection.close()
+else:
+    logger.error("************** There is some error in process in between ****************")
+    sys.exit()
+
+
+input("Press enter to terminate")
 
